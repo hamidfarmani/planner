@@ -1,139 +1,102 @@
-import React, { FC, useEffect } from "react";
-import CalendarToolbar from "./PlannerToolbar";
-import Appointment from "./Appointment";
-import { Appointment as AppointmentType, Resource } from "@/models";
-import {
-  PlannerDataContextProvider,
-  useData,
-} from "@/contexts/PlannerDataContext";
-import { PlannerProvider, useCalendar } from "@/contexts/PlannerContext";
-import { Timeline } from "./Timeline";
-import { Table, TableBody, TableRow } from "../ui/table";
-import ResourceTableCell from "./ResourceTableCell";
-import { calculateNewDates, filterAppointments } from "@/lib/utils";
-import DropTableCell from "./DropTableCell";
-import { monitorForElements } from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
+"use client";;
+import { useEffect, useState } from 'react';
+import { addDays, startOfDay, addHours } from 'date-fns';
+import { PlannerProvider, usePlanner } from '@/contexts/planner-context';
+import PlannerToolbar from './planner-toolbar';
+import PlannerResourceList from './planner-resource-list';
+import PlannerTimeGrid from './planner-time-grid';
+import { HOURS_TO_LOAD } from '@/utils/planner-constants';
 
-export interface PlannerProps extends React.HTMLAttributes<HTMLDivElement> {
-  initialResources: Resource[];
-  initialAppointments: AppointmentType[]; 
-}
+const PlannerContent = () => {
+  const {
+    currentDate,
+    view,
+    resources,
+    selectedResources,
+    appointments,
+    isLoading,
+    searchTerm,
+    setCurrentDate,
+    setView,
+    toggleResource,
+    setSearchTerm,
+    loadAppointments,
+    handleAppointmentUpdate,
+    handleAppointmentResize
+  } = usePlanner();
 
-const Planner: React.FC<PlannerProps> = ({
-  initialResources,
-  initialAppointments,
-  ...props
-}) => {
-  return (
-    <PlannerDataContextProvider
-      initialAppointments={initialAppointments}
-      initialResources={initialResources}
-    >
-      <PlannerProvider>
-        <PlannerMainComponent {...props} />
-      </PlannerProvider>
-    </PlannerDataContextProvider>
-  );
-};
-
-export interface PlannerMainComponentProps
-  extends React.HTMLAttributes<HTMLDivElement> {}
-
-const PlannerMainComponent: FC<PlannerMainComponentProps> = ({ ...props }) => {
-  return (
-    <div className="flex flex-col gap-2  ">
-      <CalendarToolbar />
-      <CalendarContent {...props} />
-    </div>
-  );
-};
-
-interface CalendarContentProps extends React.HTMLAttributes<HTMLDivElement> {}
-const CalendarContent: React.FC<CalendarContentProps> = ({ ...props }) => {
-  const { viewMode, dateRange, timeLabels } = useCalendar();
-  const { resources, appointments, updateAppointment } = useData();
+  const [virtualHours, setVirtualHours] = useState<Date[]>([]);
+ 
 
   useEffect(() => {
-    return monitorForElements({
-      onDrop({ source, location }) {
-        const destination = location.current.dropTargets[0]?.data;
-        const sourceData = source.data;
+    const initialHours = Array.from(
+      { length: HOURS_TO_LOAD },
+      (_, i) => addHours(startOfDay(currentDate), i)
+    );
+    setVirtualHours(initialHours);
+  }, [currentDate]);
 
-        if (!destination || !sourceData) return;
+  useEffect(() => {
+    if (virtualHours.length > 0 && virtualHours[0] !== undefined && virtualHours[virtualHours.length - 1] !== undefined) {
+      loadAppointments(virtualHours[0] as Date, virtualHours[virtualHours.length - 1] as Date);
+    }
+  }, [virtualHours, loadAppointments]);
 
-        const appointment = appointments.find(
-          (appt) => appt.id === sourceData.appointmentId,
-        );
-        if (!appointment) return;
+  const handleNavigate = (direction: 'prev' | 'next' | 'today') => {
+    switch (direction) {
+      case 'prev':
+        setCurrentDate(addDays(currentDate, -1));
+        break;
+      case 'next':
+        setCurrentDate(addDays(currentDate, 1));
+        break;
+      case 'today':
+        setCurrentDate(new Date());
+        break;
+    }
+  };
 
-        const newResource = resources.find(
-          (res) => res.id === destination.resourceId,
-        );
-        if (!newResource) return;
-
-        const newDates = calculateNewDates(
-          viewMode,
-          destination.columnIndex as unknown as number,
-          sourceData.columnIndex as unknown as number,
-          {
-            from: appointment.start,
-            to: appointment.end,
-          },
-        );
-
-        updateAppointment({
-          ...appointment,
-          start: newDates.start as Date,
-          end: newDates.end as Date,
-          resourceId: newResource.id,
-        });
-      },
-    });
-  }, [appointments]);
-
+ 
   return (
-    <div className="flex max-h-[calc(80vh_-_theme(spacing.16))] flex-col  ">
-      <div className="calendar-scroll flex-grow overflow-auto">
-        <Table>
-          <Timeline />
-          <TableBody>
-            {resources.map((resource) => (
-              <TableRow key={resource.id}>
-                <ResourceTableCell resourceItem={resource} />
-                {timeLabels?.map((label, index) => (
-                  <DropTableCell
-                    resourceId={resource.id}
-                    columnIndex={index}
-                    key={index}
-                  >
-                    {appointments
-                      .filter(
-                        (appt) =>
-                          filterAppointments(
-                            appt,
-                            index,
-                            dateRange,
-                            viewMode,
-                          ) && appt.resourceId === resource.id,
-                      )
-                      .sort((a, b) => a.start.getTime() - b.start.getTime())
-                      .map((appt) => (
-                        <Appointment
-                          appointment={appt}
-                          columnIndex={index}
-                          resourceId={resource.id}
-                          key={appt.id}
-                        />
-                      ))}
-                  </DropTableCell>
-                ))}
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+    <div className="flex h-[calc(100vh-10rem)] overflow-hidden">
+      <div className="flex-1 flex flex-col min-w-0">
+        <PlannerToolbar
+          currentDate={currentDate}
+          view={view}
+          onNavigate={handleNavigate}
+          onViewChange={setView}
+        />
+
+        <div className="flex-1 flex overflow-hidden">
+          <PlannerResourceList
+            resources={resources}
+            selectedResources={selectedResources}
+            searchTerm={searchTerm}
+            onSearchChange={setSearchTerm}
+            onResourceToggle={toggleResource}
+          />
+
+          <PlannerTimeGrid
+            virtualHours={virtualHours}
+            resources={resources}
+            selectedResources={selectedResources}
+            appointments={appointments}
+            isLoading={isLoading}
+            onAppointmentUpdate={handleAppointmentUpdate}
+            onResize={handleAppointmentResize}
+          />
+        </div>
       </div>
     </div>
   );
 };
 
-export default Planner;
+const InfiniteScrollingPlanner = () => {
+  return (
+    <PlannerProvider>
+      <PlannerContent />
+    </PlannerProvider>
+  );
+};
+
+export default InfiniteScrollingPlanner;

@@ -18,6 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import Planner from "@/components/planner/Planner";
 import { ModeToggle } from "@/components/ModeToggle";
+import InfiniteScrollingPlanner from "@/components/planner/Planner";
 
 export default function HomePage() {
   const [resources, setResources] = useState<Resource[]>([]);
@@ -132,7 +133,7 @@ export default function HomePage() {
               />
             </div>
           </form>
-          <ModeToggle/>
+          <ModeToggle />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="secondary" size="icon" className="rounded-full">
@@ -152,12 +153,7 @@ export default function HomePage() {
         </div>
       </header>
       <main className="flex flex-1 flex-col gap-4 p-4 md:gap-8 md:p-8">
-        {appointments.length > 0 && (
-          <Planner
-            initialResources={resources}
-            initialAppointments={appointments}
-          />
-        )}
+        <InfiniteScrollingPlanner />
       </main>
     </div>
   );

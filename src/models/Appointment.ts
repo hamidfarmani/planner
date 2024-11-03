@@ -5,6 +5,9 @@ export interface Appointment {
     title: string;
     start: Date;
     end: Date;
+    description?: string;
+    color?: string;
+    type?: string;
     resourceId: string;
     order: number;
     details:{[key:string]:any};
